@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS simulations (
   criterios_json TEXT,
   resumo_lider TEXT,
   veredicto TEXT,
+  transcript TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

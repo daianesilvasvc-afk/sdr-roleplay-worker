@@ -30,7 +30,7 @@ async function handleSave(request, env) {
   const body = await request.json();
   const {
     sdr_name, persona_name, persona_shop, persona_city,
-    level, score, criterios, resumo_lider, veredicto,
+    level, score, criterios, resumo_lider, veredicto, transcript,
   } = body;
 
   if (!sdr_name || typeof sdr_name !== "string" || !sdr_name.trim()) {
@@ -38,8 +38,8 @@ async function handleSave(request, env) {
   }
 
   await env.DB.prepare(
-    `INSERT INTO simulations (sdr_name, persona_name, persona_shop, persona_city, level, score, criterios_json, resumo_lider, veredicto)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO simulations (sdr_name, persona_name, persona_shop, persona_city, level, score, criterios_json, resumo_lider, veredicto, transcript)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     sdr_name.trim(),
     persona_name || null,
@@ -49,7 +49,8 @@ async function handleSave(request, env) {
     Number.isFinite(score) ? score : null,
     criterios ? JSON.stringify(criterios) : null,
     resumo_lider || null,
-    veredicto || null
+    veredicto || null,
+    transcript || null
   ).run();
 
   return json({ ok: true });
@@ -59,8 +60,13 @@ async function handleHistory(request, env) {
   const url = new URL(request.url);
   const sdrFilter = url.searchParams.get("sdr_name");
   const limit = Math.min(Number(url.searchParams.get("limit")) || 200, 500);
+  const withTranscript = url.searchParams.get("include_transcript") === "1";
 
-  let query = "SELECT * FROM simulations";
+  // A lista do gestor nao precisa das transcricoes — so pesa o payload.
+  const cols = withTranscript
+    ? "*"
+    : "id, sdr_name, persona_name, persona_shop, persona_city, level, score, criterios_json, resumo_lider, veredicto, created_at";
+  let query = "SELECT " + cols + " FROM simulations";
   const binds = [];
   if (sdrFilter) {
     query += " WHERE sdr_name = ?";
