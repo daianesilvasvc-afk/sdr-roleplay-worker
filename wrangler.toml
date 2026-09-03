@@ -1,0 +1,8 @@
+name = "withered-wildflower-db78"
+main = "src/index.js"
+compatibility_date = "2026-06-24"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sdr_roleplay_db"
+database_id = "b04f14c5-c3bb-41ce-8b2f-be7e31cb6be3"
