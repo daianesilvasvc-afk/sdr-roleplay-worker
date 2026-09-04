@@ -11,43 +11,101 @@ function json(data, status = 200) {
   });
 }
 
+// O front manda um payload no formato Anthropic ({system, messages, max_tokens})
+// e espera de volta {content:[{text}]}. Traduzimos os dois lados aqui para que
+// trocar de provedor nao exija mexer no index.html.
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+
+function modeloPara(task, env) {
+  return task === "avaliacao"
+    ? (env.GEMINI_MODEL_AVALIACAO || "gemini-2.5-pro")
+    : (env.GEMINI_MODEL_PERSONA || "gemini-2.5-flash");
+}
+
 async function handleProxy(request, env) {
+  if (!env.GEMINI_API_KEY) {
+    return json({ error: { message: "GEMINI_API_KEY nao configurada no worker" } }, 500);
+  }
   const body = await request.json();
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
+  const task = body.task === "avaliacao" ? "avaliacao" : "persona";
+
+  const payload = {
+    contents: (body.messages || []).map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    })),
+    generationConfig: {
+      maxOutputTokens: body.max_tokens || 8000,
     },
-    body: JSON.stringify(body),
+  };
+  if (body.system) payload.systemInstruction = { parts: [{ text: body.system }] };
+  if (typeof body.temperature === "number") payload.generationConfig.temperature = body.temperature;
+  // A avaliacao tem contrato de JSON estrito — pedir JSON nativo evita
+  // depender do remendo de fechar chaves no front.
+  if (task === "avaliacao") payload.generationConfig.responseMimeType = "application/json";
+
+  const modelo = modeloPara(task, env);
+  const response = await fetch(`${GEMINI_BASE}/${modelo}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+    body: JSON.stringify(payload),
   });
   const data = await response.json();
-  return json(data, response.status);
+
+  if (!response.ok || data.error) {
+    const msg = (data.error && data.error.message) || `Gemini HTTP ${response.status}`;
+    return json({ error: { message: msg } }, response.status || 500);
+  }
+
+  const cand = (data.candidates || [])[0];
+  const texto = ((cand && cand.content && cand.content.parts) || [])
+    .map((p) => p.text || "")
+    .join("");
+  if (!texto) {
+    // Sem texto util: bloqueio de safety, corte por limite de tokens, resposta vazia.
+    const motivo = (cand && cand.finishReason) || (data.promptFeedback && data.promptFeedback.blockReason) || "resposta vazia";
+    return json({ error: { message: `Gemini nao retornou texto (${motivo})` } }, 502);
+  }
+
+  return json({
+    content: [{ type: "text", text: texto }],
+    stop_reason: cand.finishReason === "MAX_TOKENS" ? "max_tokens" : "end_turn",
+    model: modelo,
+  });
 }
 
 async function handleSave(request, env) {
   const body = await request.json();
   const {
     sdr_name, persona_name, persona_shop, persona_city,
-    level, score, criterios, resumo_lider, veredicto, transcript,
+    level, resumo_lider, veredicto, transcript,
+    rubrica_versao, media_criterios, script_pct, bant_score, avaliacao,
   } = body;
 
   if (!sdr_name || typeof sdr_name !== "string" || !sdr_name.trim()) {
     return json({ error: { message: "sdr_name é obrigatório" } }, 400);
   }
 
+  const num = (v) => (Number.isFinite(v) ? v : null);
+  const pct = num(script_pct);
+
   await env.DB.prepare(
-    `INSERT INTO simulations (sdr_name, persona_name, persona_shop, persona_city, level, score, criterios_json, resumo_lider, veredicto, transcript)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO simulations (sdr_name, persona_name, persona_shop, persona_city, level,
+       rubrica_versao, media_criterios, script_pct, bant_score, score,
+       criterios_json, resumo_lider, veredicto, transcript)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     sdr_name.trim(),
     persona_name || null,
     persona_shop || null,
     persona_city || null,
     level || null,
-    Number.isFinite(score) ? score : null,
-    criterios ? JSON.stringify(criterios) : null,
+    rubrica_versao || null,
+    num(media_criterios),
+    pct,
+    num(bant_score),
+    pct,                 // coluna legada `score` espelha o % de script
+    avaliacao ? JSON.stringify(avaliacao) : null,
     resumo_lider || null,
     veredicto || null,
     transcript || null
@@ -65,7 +123,9 @@ async function handleHistory(request, env) {
   // A lista do gestor nao precisa das transcricoes — so pesa o payload.
   const cols = withTranscript
     ? "*"
-    : "id, sdr_name, persona_name, persona_shop, persona_city, level, score, criterios_json, resumo_lider, veredicto, created_at";
+    : `id, sdr_name, persona_name, persona_shop, persona_city, level,
+       rubrica_versao, media_criterios, script_pct, bant_score, score,
+       criterios_json, resumo_lider, veredicto, created_at`;
   let query = "SELECT " + cols + " FROM simulations";
   const binds = [];
   if (sdrFilter) {
