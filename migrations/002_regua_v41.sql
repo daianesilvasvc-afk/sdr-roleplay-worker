@@ -1,10 +1,10 @@
 -- Regua v4.1 (NEPQ + BANT) — 2026-09-03
--- A tabela em producao foi criada antes destas colunas; CREATE TABLE IF NOT EXISTS
--- nao as adiciona, entao esta migracao precisa rodar ANTES do deploy do worker novo.
+-- Precisa rodar ANTES do deploy do worker que grava estes campos.
+-- SQLite nao tem ADD COLUMN IF NOT EXISTS: se qualquer ALTER daqui ja tiver
+-- sido aplicado, o arquivo inteiro aborta com "duplicate column name".
 -- Rodar com:
---   npx wrangler d1 execute sdr_roleplay_db --remote --yes --file migrations/001_regua_v41.sql
+--   npx wrangler d1 execute sdr_roleplay_db --remote --yes --file migrations/002_regua_v41.sql
 
-ALTER TABLE simulations ADD COLUMN transcript TEXT;
 ALTER TABLE simulations ADD COLUMN rubrica_versao TEXT;
 ALTER TABLE simulations ADD COLUMN media_criterios REAL;
 ALTER TABLE simulations ADD COLUMN script_pct INTEGER;

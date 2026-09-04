@@ -38,8 +38,8 @@ npx wrangler deploy
 
 ### Migrações
 
-`schema.sql` só cria a tabela do zero — `CREATE TABLE IF NOT EXISTS` **não** adiciona coluna em tabela que já existe. Mudança de schema em produção vai como arquivo em `migrations/`, e precisa rodar **antes** do `wrangler deploy` correspondente:
+`schema.sql` só cria a tabela do zero — `CREATE TABLE IF NOT EXISTS` **não** adiciona coluna em tabela que já existe. Mudança de schema em produção vai como arquivo em `migrations/`, e precisa rodar **antes** do `wrangler deploy` correspondente. Rode um arquivo por vez, e só os que ainda não foram aplicados — SQLite não tem `ADD COLUMN IF NOT EXISTS`, então uma coluna repetida aborta o arquivo inteiro:
 
 ```bash
-npx wrangler d1 execute sdr_roleplay_db --remote --yes --file migrations/001_regua_v41.sql
+npx wrangler d1 execute sdr_roleplay_db --remote --yes --file migrations/002_regua_v41.sql
 ```

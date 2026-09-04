@@ -39,7 +39,6 @@ async function handleProxy(request, env) {
     },
   };
   if (body.system) payload.systemInstruction = { parts: [{ text: body.system }] };
-  if (typeof body.temperature === "number") payload.generationConfig.temperature = body.temperature;
   // A avaliacao tem contrato de JSON estrito — pedir JSON nativo evita
   // depender do remendo de fechar chaves no front.
   if (task === "avaliacao") payload.generationConfig.responseMimeType = "application/json";
