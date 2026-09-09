@@ -44,6 +44,16 @@ async function handleProxy(request, env) {
   // depender do remendo de fechar chaves no front.
   if (task === "avaliacao") payload.generationConfig.responseMimeType = "application/json";
 
+  // A persona nao pode raciocinar em voz alta: o flash vazou o proprio
+  // chain-of-thought no meio da fala do barbeiro ("**Thinking Process:** The SDR
+  // just presented..."), citando as instrucoes do personagem e chegando a escrever
+  // a fala do SDR. Desligar o thinking resolve na origem — um barbeiro ao telefone
+  // nao precisa deliberar, precisa responder. A avaliacao mantem o thinking: ela
+  // depende dele para varrer a transcricao antes de pontuar.
+  if (task === "persona") {
+    payload.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  }
+
   const modelo = modeloPara(task, env);
   const response = await fetch(`${GEMINI_BASE}/${modelo}:generateContent`, {
     method: "POST",
