@@ -122,7 +122,7 @@ async function handleSave(request, env) {
   const {
     sdr_name, persona_name, persona_shop, persona_city,
     level, resumo_lider, veredicto, transcript,
-    rubrica_versao, media_criterios, script_pct, bant_score, avaliacao,
+    rubrica_versao, media_criterios, script_pct, bant_score, avaliacao, modelo_avaliador,
   } = body;
 
   if (!sdr_name || typeof sdr_name !== "string" || !sdr_name.trim()) {
@@ -134,9 +134,9 @@ async function handleSave(request, env) {
 
   await env.DB.prepare(
     `INSERT INTO simulations (sdr_name, persona_name, persona_shop, persona_city, level,
-       rubrica_versao, media_criterios, script_pct, bant_score, score,
+       rubrica_versao, modelo_avaliador, media_criterios, script_pct, bant_score, score,
        criterios_json, resumo_lider, veredicto, transcript)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     sdr_name.trim(),
     persona_name || null,
@@ -144,6 +144,7 @@ async function handleSave(request, env) {
     persona_city || null,
     level || null,
     rubrica_versao || null,
+    modelo_avaliador || null,
     num(media_criterios),
     pct,
     num(bant_score),
@@ -167,7 +168,7 @@ async function handleHistory(request, env) {
   const cols = withTranscript
     ? "*"
     : `id, sdr_name, persona_name, persona_shop, persona_city, level,
-       rubrica_versao, media_criterios, script_pct, bant_score, score,
+       rubrica_versao, modelo_avaliador, media_criterios, script_pct, bant_score, score,
        criterios_json, resumo_lider, veredicto, created_at`;
   let query = "SELECT " + cols + " FROM simulations";
   const binds = [];
