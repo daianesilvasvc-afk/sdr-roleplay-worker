@@ -21,11 +21,32 @@ A régua de avaliação é a **v4.1 (NEPQ + BANT)**: cada simulação gera **doi
 
 ## Configuração
 
-A chave do Gemini vai como secret — o comando pede o valor num prompt interativo, então ela não passa por arquivo nem por histórico de shell:
+### A chave do Gemini entra pelo dashboard, e só por lá
 
-```bash
-npx wrangler secret put GEMINI_API_KEY
-```
+**Nunca cole a chave num terminal, num chat, num arquivo ou numa mensagem.** A primeira chave deste worker foi desativada pelo Google por exposição, e o vazamento não foi por código: ela nunca esteve em commit nenhum nem no site publicado. Saiu por ter sido colada numa conversa com assistente de IA, que é um serviço de terceiros — para o Google, isso basta para considerar a chave comprometida.
+
+O caminho sem exposição é navegador → navegador:
+
+1. Gere a chave no [Google AI Studio](https://aistudio.google.com/apikey)
+2. Copie
+3. Dashboard da Cloudflare → Workers → `withered-wildflower-db78` → **Settings → Variables and Secrets**
+4. Edite `GEMINI_API_KEY`, cole, salve
+
+A chave não toca em disco, em histórico de shell nem em conversa.
+
+> `npx wrangler secret put GEMINI_API_KEY` também funciona e não ecoa o valor, mas ele passa pelo terminal. Use só se o dashboard estiver indisponível — e nunca com a chave como argumento na linha de comando, que grava no histórico.
+
+**Trave o estrago possível** na chave nova, no Google Cloud Console:
+- **Restrição de API** — limite à *Generative Language API*. Chave irrestrita dá acesso a tudo habilitado no projeto.
+- **Alerta de cota/orçamento** — o simulador já ficou fora do ar uma vez por saldo estourado (na época, com a chave da Anthropic). Com alerta, você descobre antes do SDR.
+
+### Ninguém precisa da chave para trabalhar neste projeto
+
+Este worker existe justamente para isso: ele guarda o secret e todo o resto fala com ele. Testar persona, avaliação, variância ou o painel só exige chamar `POST /`. Se o worker responder `API key not valid`, esse já é o diagnóstico completo — sem ninguém ver o valor.
+
+Se alguém (pessoa ou assistente) pedir a chave para "testar", a resposta é não: peça para testar pelo worker.
+
+### Modelos
 
 Para trocar de modelo sem mexer no código, defina as vars opcionais `GEMINI_MODEL_PERSONA` e `GEMINI_MODEL_AVALIACAO` (em `wrangler.toml` ou no dashboard).
 
