@@ -16,10 +16,15 @@ function json(data, status = 200) {
 // trocar de provedor nao exija mexer no index.html.
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
+// Os modelos 2.5 continuam no catalogo mas o Google os bloqueou para chaves
+// novas ("no longer available to new users"), o que quebrou o simulador na troca
+// da chave. Defaults fixados em nome exato, nunca em alias tipo `gemini-pro-latest`:
+// a avaliacao precisa ser reproduzivel, e alias muda debaixo da gente.
+// Use GET /models para ver o que a chave atual enxerga.
 function modeloPara(task, env) {
   return task === "avaliacao"
-    ? (env.GEMINI_MODEL_AVALIACAO || "gemini-2.5-pro")
-    : (env.GEMINI_MODEL_PERSONA || "gemini-2.5-flash");
+    ? (env.GEMINI_MODEL_AVALIACAO || "gemini-3.1-pro-preview")
+    : (env.GEMINI_MODEL_PERSONA || "gemini-3.8-flash");
 }
 
 async function handleProxy(request, env) {
@@ -44,14 +49,19 @@ async function handleProxy(request, env) {
   // depender do remendo de fechar chaves no front.
   if (task === "avaliacao") payload.generationConfig.responseMimeType = "application/json";
 
-  // A persona nao pode raciocinar em voz alta: o flash vazou o proprio
+  // A persona nao pode raciocinar em voz alta: o modelo vazou o proprio
   // chain-of-thought no meio da fala do barbeiro ("**Thinking Process:** The SDR
   // just presented..."), citando as instrucoes do personagem e chegando a escrever
-  // a fala do SDR. Desligar o thinking resolve na origem — um barbeiro ao telefone
-  // nao precisa deliberar, precisa responder. A avaliacao mantem o thinking: ela
-  // depende dele para varrer a transcricao antes de pontuar.
+  // a fala do SDR com um preco inventado. Um barbeiro ao telefone nao precisa
+  // deliberar, precisa responder.
+  //
+  // Na familia 3.x o controle e `thinkingLevel`, nao `thinkingBudget` — o campo
+  // antigo e aceito e ignorado, e o raciocinio comia o orcamento de saida
+  // (resposta cortada em 14 caracteres com 120 tokens disponiveis). "low" e o
+  // minimo: o enum rejeita "none". A avaliacao fica no default, que raciocina —
+  // ela depende disso para varrer a transcricao antes de pontuar.
   if (task === "persona") {
-    payload.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    payload.generationConfig.thinkingConfig = { thinkingLevel: "low" };
   }
 
   const modelo = modeloPara(task, env);
@@ -82,6 +92,29 @@ async function handleProxy(request, env) {
     stop_reason: cand.finishReason === "MAX_TOKENS" ? "max_tokens" : "end_turn",
     model: modelo,
   });
+}
+
+// Diagnostico: lista os modelos que a chave configurada enxerga.
+// Existe para que ninguem precise da chave para descobrir isso — foi exatamente
+// o que travou a troca da chave, quando os modelos 2.5 sairam do ar para chaves
+// novas e nao havia como listar os disponiveis sem o valor em mao.
+async function handleModels(request, env) {
+  if (!env.GEMINI_API_KEY) {
+    return json({ error: { message: "GEMINI_API_KEY nao configurada no worker" } }, 500);
+  }
+  const response = await fetch(GEMINI_BASE, {
+    headers: { "x-goog-api-key": env.GEMINI_API_KEY },
+  });
+  const data = await response.json();
+  if (!response.ok || data.error) {
+    const msg = (data.error && data.error.message) || `Gemini HTTP ${response.status}`;
+    return json({ error: { message: msg } }, response.status || 500);
+  }
+  // So o que interessa para escolher modelo — nada de eco da chave.
+  const models = (data.models || [])
+    .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map((m) => ({ id: m.name.replace("models/", ""), input: m.inputTokenLimit, output: m.outputTokenLimit }));
+  return json({ configurado: { persona: modeloPara("persona", env), avaliacao: modeloPara("avaliacao", env) }, models });
 }
 
 async function handleSave(request, env) {
@@ -167,6 +200,9 @@ export default {
     try {
       if (url.pathname === "/save" && request.method === "POST") {
         return await handleSave(request, env);
+      }
+      if (url.pathname === "/models" && request.method === "GET") {
+        return await handleModels(request, env);
       }
       if (url.pathname === "/history" && request.method === "GET") {
         return await handleHistory(request, env);

@@ -11,6 +11,7 @@ URL: https://withered-wildflower-db78.daiane-silvasvc.workers.dev
   - `task: "avaliacao"` → modelo de qualidade (`GEMINI_MODEL_AVALIACAO`, default `gemini-2.5-pro`), com `responseMimeType: application/json` para o JSON da nota vir bem-formado
   - A chave `GEMINI_API_KEY` fica como **secret** na Cloudflare, nunca no código nem no front (o site é estático e público).
 - `POST /save` — grava o resultado de uma simulação no D1: `sdr_name`, persona, nível, `rubrica_versao`, `media_criterios` (0–5), `script_pct` (0–100), `bant_score` (0–4), `avaliacao` (JSON completo), `resumo_lider`, `veredicto` (síntese do líder) e `transcript`.
+- `GET /models` — lista os modelos que a chave configurada enxerga, e quais estão em uso. Existe para que ninguém precise da chave para diagnosticar disponibilidade de modelo — sem ela, a troca de chave trava sem pista.
 - `GET /history?sdr_name=&limit=` — lista simulações salvas, mais recentes primeiro. Usado pelo `historico.html` do site. **Não** devolve as transcrições por padrão (só pesariam o payload); use `?include_transcript=1` para trazê-las.
 
 ## Banco
@@ -48,7 +49,16 @@ Se alguém (pessoa ou assistente) pedir a chave para "testar", a resposta é nã
 
 ### Modelos
 
-Para trocar de modelo sem mexer no código, defina as vars opcionais `GEMINI_MODEL_PERSONA` e `GEMINI_MODEL_AVALIACAO` (em `wrangler.toml` ou no dashboard).
+| Tarefa | Default | Var para sobrescrever |
+|---|---|---|
+| Persona (barbeiro) | `gemini-3.8-flash` | `GEMINI_MODEL_PERSONA` |
+| Avaliação (nota) | `gemini-3.1-pro-preview` | `GEMINI_MODEL_AVALIACAO` |
+
+Os modelos **2.5 continuam no catálogo mas o Google os bloqueou para chaves novas** — trocar a chave derrubou o simulador com `no longer available to new users`. Use `GET /models` para ver o que a chave atual enxerga.
+
+Defaults são sempre **nome exato, nunca alias** (`gemini-pro-latest` e afins): a nota precisa ser reproduzível, e alias muda debaixo do projeto sem aviso.
+
+**Thinking:** na família 3.x o controle é `thinkingConfig.thinkingLevel`, não `thinkingBudget` — o campo antigo é aceito e silenciosamente ignorado, e o raciocínio consome o orçamento de saída. A persona roda em `"low"` (o mínimo; o enum rejeita `"none"`) porque o modelo chegou a vazar o próprio raciocínio dentro da fala do barbeiro. A avaliação fica no default, que raciocina — ela depende disso para varrer a transcrição antes de pontuar.
 
 ## Deploy
 
