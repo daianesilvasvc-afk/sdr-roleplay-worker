@@ -2,6 +2,8 @@
 -- O campo é digitado à mão: 12 pessoas estavam gravadas sob 17 nomes, e o painel
 -- tratava 'Bryan' e 'bryan' como dois SDRs com médias separadas.
 -- Confirmado pela Daiane que Bryan/bryan são a mesma pessoa.
+-- ATENÇÃO: 'Vinicius' e 'Vinícius' são PESSOAS DIFERENTES — o acento distingue.
+-- Nunca unificar grafias só por serem parecidas: confirmar com a gestão antes.
 -- Rodar com:
 --   npx wrangler d1 execute sdr_roleplay_db --remote --yes --file migrations/004_nomes_sdr.sql
 
@@ -11,4 +13,3 @@ UPDATE simulations SET sdr_name = 'Emanuel' WHERE sdr_name IN ('Emanuel', 'emanu
 UPDATE simulations SET sdr_name = 'Jhow' WHERE sdr_name IN ('jhow');
 UPDATE simulations SET sdr_name = 'Lelis' WHERE sdr_name IN ('lelis', 'Lelis');
 UPDATE simulations SET sdr_name = 'Matheos' WHERE sdr_name IN ('matheos');
-UPDATE simulations SET sdr_name = 'Vinícius' WHERE sdr_name IN ('Vinicius', 'Vinícius');
